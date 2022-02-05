@@ -13,9 +13,9 @@
 //  xlong_obj.h
 //  Xenon CM
 
-// Version 0.3.0
+// Version 0.7.0
 
-// last version id = 8991778aa03f2e429ecd6ec91594864ebaf42bbb
+// last version id = 00306be9e0e1ff0203436859a7893b1b220a5eef
 
 #include "xlong_obj.h"
 
@@ -83,8 +83,8 @@ void xln_free(xln* obj){
 void xln_copy(xln* left, xln* right){
     if(left != NULL && right != NULL){
         left->_current = right->_current; left->_sign = right->_sign;
-        
-        if(left->_size < right->_size){
+        left->_sign = right->_sign;
+        if(left->_size != right->_size){
             left = xln_realloc(left, right->_size);
         }
         
@@ -161,7 +161,7 @@ xln* xln_convert_reverse(xln* obj){
             //printf("a= %llu\n", i);
         }
 #       define pre_base 1000000000
-        obj->_current = 1;
+        obj->_current = 0;
         // i <= n
         for(i = 0; i < n; ++i){
             carry = 0;
@@ -194,6 +194,7 @@ xln* xln_init_string(xln* obj, const char* str){
         char tmp[(size_str)];
         
         memmove(tmp, str, strlen(str)*sizeof(char));
+        
         for(int64_t i = (int64_t)(size_str); i > 0; i -= 9, ++j){
             //memcpy(&tmp, i >= 9 ? (str + i - 9) : str, 9*sizeof(char));
             
@@ -221,6 +222,36 @@ xln* xln_init_int(xln* obj, int32_t val){
     }
     else {
         error("Attempt to init NULL obj", -1);
+        return NULL;
+    }
+}
+
+/*
+ This function initializes xln with a number from the string modulo 10^9,
+ normalizes it with the xln_norm function and returns a pointer to the object otherwise NULL
+ */
+xln* xln_init_string16(xln* obj, const char* str){
+    if(str != NULL && obj != NULL){
+        uint32_t size_str = (uint32_t)(strlen(str));
+        int32_t j = 0;
+        uint64_t a[size_str];
+        char tmp[(size_str)];
+        
+        memmove(tmp, str, strlen(str)*sizeof(char));
+        for(int64_t i = (int64_t)(size_str); i > 0; i -= 9, ++j){
+            //memcpy(&tmp, i >= 9 ? (str + i - 9) : str, 9*sizeof(char));
+            
+            tmp[i] = '\0';
+            a[j] = (uint64_t)atol(i >= 9 ? tmp + i - 9 : tmp);
+        }
+        return xln_convert(obj, a, j);
+    }
+    else if(obj == NULL){
+        static xln* obj;
+        obj = (xln*)malloc(sizeof(xln));
+        return obj;
+    }
+    else{
         return NULL;
     }
 }
@@ -307,10 +338,8 @@ void xln_printr(xln* obj){
  */
 xln* xln_sum(xln* result, xln* left, xln* right){
     if(left != NULL && right != NULL){
-        if(left->_sign == -1 && right->_sign == -1){
-            result->_sign = -1;
-        }
-        if(left->_size <= right->_size){
+        
+        if(left->_current <= right->_current){
             uint32_t i = 0;
             uint32_t carry = 0;
             if(result == NULL){
@@ -342,6 +371,44 @@ xln* xln_sum(xln* result, xln* left, xln* right){
 }
 
 /*
+ This function is a safe wrapper for xln_sum, in case its operands can be negative.
+ It takes three pointers: result, left and right operands, respectively. If the pointer to the result is zero, it returns NULL.
+ */
+xln* xln_ssum(xln* result, xln* left, xln* right){
+    if(result != NULL && left != NULL && right != NULL){
+        if(left->_sign == -1 && right->_sign == -1){
+            result->_sign = -1;
+            return xln_sum(result, left, right);
+        }
+        else if(left->_sign == -1 && right->_sign == 1){
+            if(xln_less(right, left) == LN_TRUE){
+                result->_sign = -1;
+            }
+            else{
+                result->_sign = 1;
+            }
+            return xln_sub(result, right, left);
+        }
+        else if(left->_sign == 1 && right->_sign == -1){
+            if(xln_less(left, right) == LN_TRUE){
+                result->_sign = -1;
+            }
+            else{
+                result->_sign = 1;
+            }
+            return xln_sub(result, left, right);
+        }
+        else{
+            return xln_sum(result, left, right);
+        }
+    }
+    else {
+        error("ATNE", -4);
+        return NULL;
+    }
+}
+
+/*
  This function subtracts one number from another with a sign. If no memory has been allocated for the resulting
  number, it is allocated and returns the result or NULL in case of an error.
  
@@ -354,43 +421,96 @@ xln* xln_sum(xln* result, xln* left, xln* right){
  3. Increment j by one, if we have passed all digits, assign the last value of the remainder and complete the execution.
  */
 xln* xln_sub(xln* result, xln* left, xln* right){
-    if(left != NULL && right != NULL){
+    
+    if(result != NULL && left != NULL && right != NULL){
+        
         int32_t i = 0;
         int64_t carry = 0;
-        if(result == NULL){
-            result = xln_alloc(left->_size);
-        }
         
-        else if(left->_size == right->_size){
+        if(left->_current == right->_current){
+            
             i = left->_current;
+            
             while((--i >= 0) && (left->_mem[i] == right->_mem[i])){}
+            
             if(i < 0){
                 result->_mem[0] = 0;
                 result->_current = 1;
+                result->_sign = 1;
                 return result;
             }
+            
             if(left->_mem[i] < right->_mem[i]){
                 result->_sign = -1;
                 return xln_sub(result, right, left);
             }
-            left->_size = right->_size = i+1;
+            
+            left->_current = right->_current = i+1;
         }
+        else if(xln_less(left, right) == LN_TRUE){
+            result->_sign = -1;
+            return xln_sub(result, right, left);
+        }
+        
         for(i = 0; i < right->_current; ++i){
             carry = (int64_t)(left->_mem[i] - right->_mem[i] - carry);
             result->_mem[i] = carry & (_XLN_MASK);
             carry = (carry >> _XLN_SHIFT) & 1;
         }
+        
         for(; i < left->_current; ++i){
             carry = left->_mem[i] - carry;
             result->_mem[i] = carry & (_XLN_MASK);
             carry = (carry >> _XLN_SHIFT) & 1;
         }
+        
         result->_current = i;
         result->_mem[i] = (uint32_t)carry;
-        return result;
+    
+        
+        return xln_normalize(result);
     }
     else{
         error("ATANE", -4);
+        return NULL;
+    }
+}
+
+/*
+ This function is a safe wrapper for xln_sum, in case its operands can be negative.
+ It takes three pointers: result, left and right operands, respectively. If the pointer to the result is zero, it returns NULL.
+ */
+xln* xln_ssub(xln* result, xln* left, xln* right){
+    if(result != NULL && left != NULL && right != NULL){
+        
+        if(left->_sign == -1){
+            // -a -(-b) = b - a
+            if(right->_sign == -1){
+                printf("HERE\n");
+                return xln_sub(result, right, left);
+            } // -a - b
+            else{
+                result->_sign = -1;
+                return xln_sum(result, left, right);
+            }
+        }
+        else {
+            // a - (-b) = a + b
+            if(right->_sign == -1){
+                result->_sign = 1;
+                return xln_sum(result, left, right);
+            }
+            else{ // a - b
+                if(xln_less(left, right) == LN_TRUE){
+                    result->_sign = -1;
+                }
+                return xln_sub(result, left, right);
+            }
+        }
+        
+        return NULL;
+    }
+    else {
         return NULL;
     }
 }
@@ -439,13 +559,18 @@ xln* xln_smul_int(xln* result, xln* left, uint32_t right){
  */
 xln* xln_smul(xln* result, xln* left, xln* right){
     if(left != NULL && right != NULL){
+        
         uint32_t max_size = (left->_current + right->_current + 0x1);
+        
         if(result == NULL){
             result = xln_alloc((uint32_t)max_size);
-            return xln_smul(result, left, right);
         }
         
-        for(uint32_t i = 0; i <= max_size; ++i){
+        if(result->_size < max_size){
+            xln_realloc(result, max_size);
+        }
+        
+        for(uint32_t i = 0; i < result->_size; ++i){
             result->_mem[i] = 0;
         }
         
@@ -462,6 +587,7 @@ xln* xln_smul(xln* result, xln* left, xln* right){
             result->_mem[i+j] = (uint32_t)carry;
         }
     
+        result->_sign = left->_sign * right->_sign;
         result->_current = max_size;
         return xln_normalize(result);
     }
@@ -536,7 +662,7 @@ uint32_t xln_smod_int(xln* left, uint32_t right){
             return 0;
         }
         
-        uint32_t carry = 0;
+        int32_t carry = 0;
         uint64_t current;
         for(int32_t i = (int32_t)left->_current-1; i >= 0; --i){
             current = left->_mem[i] + (carry*1ll <<_XLN_SHIFT);
@@ -579,22 +705,21 @@ xln* xln_sdiv(xln* result, xln *left, xln *right){
         int64_t carry = 0;
         uint64_t current, d, q, r;
         int32_t i, j, m, n, k;
-        xln* tr = xln_alloc(right->_size), *bl = xln_alloc(left->_size), *br = xln_alloc(right->_size);
+        
+        xln* tr = xln_alloc(right->_size),
+        *bl = xln_alloc(left->_size),
+        *br = xln_alloc(right->_size);
         
         xln_copy(tr, right); xln_copy(bl, left); xln_copy(br, right);
-        
-//        uint32_t *tr, *bl, *br;
-//
-//        tr = (uint32_t*)malloc(sizeof(uint32_t)*right->_current);
-//        bl = (uint32_t*)malloc(sizeof(uint32_t)*left->_current);
-//        br = (uint32_t*)malloc(sizeof(uint32_t)*right->_current);
-//
-//        memcpy(bl, left->_mem, left->_current*sizeof(uint32_t));
-//        memcpy(br, right->_mem, right->_current*sizeof(uint32_t));
  
         m = left->_current - right->_current - 1;
         n = right->_current;
         d = (_XLN_BASE)/(1+right->_mem[n-1]);
+        
+        if(m <= 0){
+            XLN_SETZERO(result);
+            return result;
+        }
         
         if(right->_mem[n-1] < (_XLN_BASE/2)){
                         
@@ -693,7 +818,7 @@ xln* xln_sdiv(xln* result, xln *left, xln *right){
             
             // If the sign is negative, we must compensate for the addition. Decrease the found value by one.
             if(left->_sign == -1){
-                error("warning sign = -1\n", 1);
+                //error("warning sign = -1\n", 1);
                 result->_mem[j] -= 1;
                 for(i = 0, k = j; i < n && k <= j+n; ++i, ++k){
                     carry = left->_mem[k] + right->_mem[i] + carry;
@@ -717,8 +842,16 @@ xln* xln_sdiv(xln* result, xln *left, xln *right){
         // Free tmp memory
         xln_free(tr); xln_free(bl); xln_free(br);
         
-        result->_current = n+m;
-        return xln_normalize(result);
+        if(XLN_ISZERO(result)){
+            result->_sign = 1;
+            result->_current = 1;
+            return xln_normalize(result);
+        }
+        else{
+            result->_sign = left->_sign * right->_sign;
+            result->_current = n+m;
+            return xln_normalize(result);
+        }
     }
     else{
         error("ATANE\n", -4);
@@ -750,18 +883,21 @@ xln* xln_smod(xln* result, xln* left, xln* right){
         int32_t i, j, m, n, k;
         //uint32_t *tr, *bl, *br;
         xln* tr = xln_alloc(right->_size), *bl = xln_alloc(left->_size), *br = xln_alloc(right->_size);
-        
-//        tr = (uint32_t*)malloc(sizeof(uint32_t)*right->_current);
-//        bl = (uint32_t*)malloc(sizeof(uint32_t)*left->_current);
-//        br = (uint32_t*)malloc(sizeof(uint32_t)*right->_current);
-//        memcpy(bl, left->_mem, left->_size*sizeof(uint32_t));
-//        memcpy(br, right->_mem, right->_size*sizeof(uint32_t));
  
         xln_copy(tr, right); xln_copy(bl, left); xln_copy(br, right);
+        
+        if(left->_sign == -1){
+            xln_inverseMod(left, bl, right);
+        }
         
         m = left->_current - right->_current - 1;
         n = right->_current;
         d = (_XLN_BASE)/(1+right->_mem[n-1]);
+        
+        if(m < -1){
+            XLN_SETZERO(result);
+            return result;
+        }
     
         if(right->_mem[n-1] < (_XLN_BASE/2)){
                         
@@ -866,7 +1002,7 @@ xln* xln_smod(xln* result, xln* left, xln* right){
             
             if(left->_sign == -1){
                 //xln_sum(left, left, right);
-                error("warning sign = -1\n", 1);
+                //error("warning sign = -1\n", 1);
                 result->_mem[j] -= 1;
                 carry = 0;
                 for(i = 0, k = j; i < n && k <= j+n; ++i, ++k){
@@ -890,8 +1026,11 @@ xln* xln_smod(xln* result, xln* left, xln* right){
         xln_sdiv_int(result, left, (uint32_t)d);
 
 //      Return the original values. And normalize the answer.
-//      memmove(left->_mem, bl, left->_size*sizeof(uint32_t));
-//      memmove(right->_mem, br, right->_size*sizeof(uint32_t));
+
+        if(XLN_ISZERO(result)){
+            XLN_SETZERO(result);
+        }
+        
         xln_copy(left, bl);
         xln_copy(right, br);
 
@@ -905,7 +1044,10 @@ xln* xln_smod(xln* result, xln* left, xln* right){
         return NULL;
     }
 }
+//----------------------------------------------------------------------------------------
 
+// ALGORITHM
+//----------------------------------------------------------------------------------------
 /*
  Extended_enclidean_algoritm for right < base
  */
@@ -929,6 +1071,78 @@ uint32_t xln_gcdInt(xln*left, uint32_t right){
     else {
         error("ATANE", -4);
         return 0;
+    }
+}
+
+/*
+ Function for finding the greatest common divisor of two numbers when the right number is less than the base of the system and two numbers such that left*x + right*y = gcd(left, right)
+ */
+void** xln_egcd(xln*left, xln* right){
+    if(left != NULL){
+        //Next
+        void **ptr = (void**)malloc(3*sizeof(void));
+        
+        xln *u1 = xln_alloc(left->_size), *u2 = xln_alloc(left->_size), *u3 = xln_alloc(left->_size);
+        xln *v1 = xln_alloc(left->_size), *v2 = xln_alloc(left->_size), *v3 = xln_alloc(right->_size);
+        xln *t1 = xln_alloc(left->_size), *t2 = xln_alloc(left->_size), *t3 = xln_alloc(left->_size);
+        xln *q = xln_alloc(left->_size), *n = xln_alloc(left->_size);
+        
+        xln_init_string(u1, "1"); xln_init_string(u2, "0");
+        xln_init_string(v1, "0"); xln_init_string(v2, "1");
+
+        xln_copy(u3, left); xln_copy(v3, right);
+
+        while(v3->_current >= 1 && v3->_mem[0] != 0){
+            
+           // xln_print(q);
+#ifdef EGCDDEBUG
+        
+            xln_print(u1);
+            xln_print(u2);
+            xln_print(u3);
+
+            xln_print(v1);
+            xln_print(v2);
+            xln_print(v3);
+            
+            xln_print(n);
+            
+            printf("END ITERATION\n");
+#endif
+            xln_sdiv(q, u3, v3);
+            
+            xln_smul(n, v1, q);
+            xln_ssub(t1, u1, n);
+
+            xln_smul(n, v2, q);
+            xln_ssub(t2, u2, n);
+
+            xln_smul(n, v3, q);
+            xln_ssub(t3, u3, n);
+
+            xln_copy(u1, v1);
+            xln_copy(u2, v2);
+            xln_copy(u3, v3);
+            
+            xln_copy(v1, t1);
+            xln_copy(v2, t2);
+            xln_copy(v3, t3);
+
+        }
+        
+        ptr[0] = u1;
+        ptr[1] = u2;
+        ptr[2] = u3;
+        
+        xln_free(v1); xln_free(v2); xln_free(v3);
+        xln_free(t1); xln_free(t2); xln_free(t3);
+        xln_free(q); xln_free(n);
+        
+        return ptr;
+    }
+    else {
+        error("ATANE", -4);
+        return NULL;
     }
 }
 
@@ -975,6 +1189,90 @@ xln* xln_gcd(xln* res, xln*left, xln* right){
         return NULL;
     }
 }
+
+/**
+ (left*result) mod right == 1
+ */
+xln* xln_inverseOf(xln* result, xln* left, xln* right){
+    if(result != NULL && left != NULL && right != NULL){
+        
+        void **ptr = xln_egcd(left, right);
+
+        // Ohh This may seem hard to read. But there is nothing complicated here, just checking for inequality to zero.
+        if((((xln*)(*(ptr+2)))->_current > 1) || ((((xln*)(*(ptr+2)))->_current == 1) && ((((xln*)(*(ptr+2)))->_mem[0] != 1)))){
+            result->_current = 1;
+            result->_mem[0] = 0;
+        }
+        else{
+            xln_smod(result, ptr[0], right);
+        }
+        
+        free(ptr);
+        
+        return result;
+    }
+    else{
+        error("ATANE", -4);
+        return NULL;
+    }
+}
+
+/*
+ inverse number of mod m
+ */
+xln* xln_inverseMod(xln* result, xln * left, xln* mod){
+    if(result != NULL && left != NULL && mod != NULL){
+        
+        if(left->_sign == 1){
+            xln_copy(result, left);
+            return result;
+        }
+        else {
+            xln *tmp1 = xln_alloc(left->_size);
+            xln *tmp2 = xln_alloc(left->_size);
+            
+            xln_copy(tmp1, left); xln_copy(tmp2, left);
+
+            xln_sdiv(tmp2, tmp1, mod);
+
+            if(XLN_ISZERO(tmp2)){
+                tmp1->_sign = 1;
+                tmp2->_sign = 1;
+                
+                xln_ssum(result, left, mod);
+                return result;
+            }
+            
+            tmp1->_sign = 1;
+            tmp2->_sign = 1;
+            
+            uint32_t carry = 0;
+            for(int32_t i = 0; i < tmp2->_current; ++i){
+                carry += tmp2->_mem[i] + 1;
+                tmp2->_mem[i] = carry & (_XLN_MASK);
+                carry >>= _XLN_SHIFT;
+            }
+            
+            xln_smul(tmp1, tmp2, mod);
+            
+            xln_ssum(tmp2, tmp1, left);
+            xln_copy(result, tmp2);
+    
+            xln_free(tmp1);
+            xln_free(tmp2);
+            
+            return result;
+            
+        }
+    
+        return result;
+    }
+    else{
+        error("ATANE", -4);
+        return NULL;
+    }
+}
+
 //----------------------------------------------------------------------------------------
 
 
@@ -989,13 +1287,16 @@ lnbool xln_equal(xln* left, xln* right){
         else if(left->_current > right->_current){
             return LN_FALSE;
         }
-        else {
-            for(uint32_t i = left->_current-1; i >= 0; --i){
+        else if(left->_sign == right->_sign){
+            for(int32_t i = left->_current-1; i >= 0; --i){
                 if(*(left->_mem + i) != *(right->_mem + i)){
                     return LN_FALSE;
                 }
             }
             return LN_TRUE;
+        }
+        else{
+            return LN_FALSE;
         }
     }
     else{
@@ -1057,15 +1358,15 @@ lnbool xln_eqless(xln* left, xln* right){
 
 lnbool xln_more(xln* left, xln* right){
     if(left != NULL && right != NULL){
-        if(left->_current > right->_current){
+        if((left->_current > right->_current) || (left->_sign > right->_sign)){
             return LN_TRUE;
         }
-        else if(left->_current < right->_current){
+        else if(left->_current < right->_current || (left->_sign < right->_sign)){
             return LN_FALSE;
         }
         else {
-            for(uint32_t i = left->_current-1; i >= 0; --i){
-                if(*(left->_mem + i) < *(right->_mem + i)){
+            for(int32_t i = left->_current-1; i >= 0; --i){
+                if(*(left->_mem + i) <= *(right->_mem + i)){
                     return LN_FALSE;
                 }
             }
@@ -1080,15 +1381,15 @@ lnbool xln_more(xln* left, xln* right){
 
 lnbool xln_less(xln* left, xln* right){
     if(left != NULL && right != NULL){
-        if(left->_current < right->_current){
+        if(left->_current < right->_current || (left->_sign < right->_sign)){
             return LN_TRUE;
         }
-        else if(left->_current > right->_current){
+        else if(left->_current > right->_current || (left->_sign > right->_sign)){
             return LN_FALSE;
         }
         else {
-            for(uint32_t i = left->_current-1; i >= 0; --i){
-                if(*(left->_mem + i) > *(right->_mem + i)){
+            for(int32_t i = left->_current-1; i >= 0; --i){
+                if(*(left->_mem + i) >= *(right->_mem + i)){
                     return LN_FALSE;
                 }
             }
@@ -1115,16 +1416,14 @@ void test_gcdInt(void){
     xln_free(obj);
 }
 
-void test_gcd(void){
-    xln* obj = xln_alloc(30);
-    xln* obj2 = xln_alloc(30);
-    xln* res = xln_alloc(61);
-    xln_init_string(obj,  "9085729004256841718308438420015608007687001344443112760818356862794610647930864113878808725615792656835384509495872239647213856410356729267494460946312905410849");
-
-
-
-    xln_init_string(obj2, "1108899372780783641306111715875094966436017167649879524402769841278887580501366697712424694256005093589248451503068397608001");
-    xln_gcd(res, obj, obj2);
+void test_gcd(const char *str1, const char *str2){
+    xln* obj = xln_alloc(256);
+    xln* obj2 = xln_alloc(256);
+    xln* res = xln_alloc(256);
+    xln_init_string(obj,  str1);
+    obj->_sign = -1;
+    xln_init_string(obj2, str2);
+    xln_inverseMod(res, obj, obj2);
     xln_convert_reverse(res);
     xln_printr(res);
     
@@ -1133,17 +1432,33 @@ void test_gcd(void){
     xln_free(res);
 }
 
-void test_large_number(void){
-    xln* obj = xln_alloc(600);
-    xln* obj2 = xln_alloc(600);
-    xln* res = xln_alloc(1200);
-    xln_init_string(obj,  xln_2_16384);
+void test_inverseMod(const char *str1, const char *str2){
+    xln* obj = xln_alloc(256);
+    xln* obj2 = xln_alloc(256);
+    xln* res = xln_alloc(256);
+    xln_init_string(obj,  str1);
+    obj->_sign = -1;
+    xln_init_string(obj2, str2);
+    xln_inverseMod(res, obj, obj2);
+    xln_convert_reverse(res);
+    xln_printr(res);
+    
+    xln_free(obj);
+    xln_free(obj2);
+    xln_free(res);
+}
+
+void test_large_number(const char *str1, const char *str2){
+    xln* obj = xln_alloc(256);
+    xln* obj2 = xln_alloc(256);
+    xln* res = xln_alloc(256);
+    xln_init_string(obj,  str1);
     printf("%d\n", obj->_current);
-    xln_init_string(obj2, xln_2_16384);
+    xln_init_string(obj2, str2);
     xln_smul(res, obj, obj2);
-    printf("%u\n", xln_smod_int(res, 1073676287));
-    //xln_convert_reverse(obj);
-    //xln_printr(obj);
+    //printf("%u\n", xln_smod_int(res, 1073676287));
+    xln_convert_reverse(res);
+    xln_printr(res);
     
     xln_free(obj);
     xln_free(obj2);
@@ -1158,6 +1473,89 @@ void test(void){
     
     xln_free(obj);
 }
+
+//280232076 479
+void test_div(const char *str1, const char *str2){
+    xln* obj = xln_alloc(10);
+    xln* obj2 = xln_alloc(10);
+    xln* res = xln_alloc(10);
+    xln_init_string(obj,  str1);
+    xln_init_string(obj2, str2);
+    xln_sub(res, obj2, obj);
+
+    xln_convert_reverse(res);
+    
+    xln_printr(res);
+    
+    xln_free(obj);
+    xln_free(obj2);
+    xln_free(res);
+}
+
+void test_egcd(const char *str1, const char *str2){
+    xln* obj = xln_alloc(10);
+    xln* obj2 = xln_alloc(10);
+    // 73 1065361183 236911421
+    xln_init_string(obj,  str1);
+
+    xln_init_string(obj2, str2);
+    
+    void **ptr = xln_egcd(obj, obj2);
+    
+    xln_convert_reverse(ptr[0]);
+    xln_convert_reverse(ptr[1]);
+    xln_convert_reverse(ptr[2]);
+
+    xln_printr(ptr[0]);
+    xln_printr(ptr[1]);
+    xln_printr(ptr[2]);
+    
+    xln_free(obj);
+    xln_free(obj2);
+    
+    xln_free(ptr[0]);
+    xln_free(ptr[1]);
+    xln_free(ptr[2]);
+    free(ptr);
+
+}
+
+void test_inverse(const char *str1, const char *str2){
+    xln* obj = xln_alloc(10);
+    xln* obj2 = xln_alloc(10);
+    xln* result = xln_alloc(10);
+    
+    xln_init_string(obj,  str1);
+
+    xln_init_string(obj2, str2);
+    
+    xln_inverseOf(result, obj, obj2);
+    
+    xln_convert_reverse(result);
+    xln_printr(result);
+    
+    xln_free(obj);
+    xln_free(obj2);
+}
+
+void test_smod(const char *str1, const char *str2){
+    xln* obj = xln_alloc(256);
+    xln* obj2 = xln_alloc(256);
+    xln* result = xln_alloc(256);
+    
+    xln_init_string(obj,  str1);
+
+    xln_init_string(obj2, str2);
+    
+    xln_smod(result, obj, obj2);
+    
+    xln_convert_reverse(result);
+    xln_printr(result);
+    
+    xln_free(obj);
+    xln_free(obj2);
+}
+
 //----------------------------------------------------------------------------------------
 
 

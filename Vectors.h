@@ -29,7 +29,7 @@ FITNESS FOR A PARTICULAR PURPOSE.  See the KI General Public License version for
 #   include <stdlib.h>
 #   include <stdio.h>
 #   include <math.h>
-#   include "../xlong_obj.h"
+#   include "lib/xlong_obj.h"
 #endif
 
 static int8_t _vector_error_id = 0;

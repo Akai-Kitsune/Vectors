@@ -63,6 +63,6 @@ void testXLN(void){
 
 int main(void){
 	// In documentation
-	testXLN();
+	test2();
 	return 0;
 }
