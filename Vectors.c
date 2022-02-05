@@ -8,6 +8,10 @@ FITNESS FOR A PARTICULAR PURPOSE.  See the KI General Public License version for
 */
 //----------------------------------------------------------------------------------------------------
 
+
+/**
+ Metacode for C polymorphism implementation for working with data vectors and tuples.
+ */
 #ifndef TEMPLATE
 #define TEMPLATE
 #ifdef T 
@@ -175,7 +179,7 @@ FITNESS FOR A PARTICULAR PURPOSE.  See the KI General Public License version for
                 for(uint32_t i = 0; i < size; ++i){
                     //*(left->data + i) = *(array + i);
                     left->data[i] = array[i];
-                    xln_print(left->data[i]);
+                    //xln_print(left->data[i]);
                 }
                 
             } else{
@@ -498,6 +502,18 @@ FITNESS FOR A PARTICULAR PURPOSE.  See the KI General Public License version for
 		}
 	}
 
+    #ifdef T2
+    void _GET_NAME(vector_free, T2)(_GET_NAME(__vector, T2)* left)
+    {
+        if(left == NULL){
+            _vector_error_id = _VECTOR_ATTEMPT_TO_ACCESS_A_NONEXISTENT_ENTITY;
+        }
+        else{
+            free(left->data);
+            free(left);
+        }
+    }
+    #endif
 
 
 

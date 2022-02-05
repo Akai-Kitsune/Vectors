@@ -29,7 +29,7 @@ FITNESS FOR A PARTICULAR PURPOSE.  See the KI General Public License version for
 #   include <stdlib.h>
 #   include <stdio.h>
 #   include <math.h>
-#   include "xlong_obj.h"
+#   include "../xlong_obj.h"
 #endif
 
 static int8_t _vector_error_id = 0;
@@ -68,6 +68,9 @@ typedef enum __vector_error
 
 #endif // __C_VECTORS_H__
 
+/**
+ Metacode for C polymorphism implementation for working with data vectors and tuples.
+ */
 #ifndef TEMPLATE
 #define TEMPLATE
 #ifdef T
@@ -163,6 +166,9 @@ typedef enum __vector_error
 	void _GET_NAME(vector5_free, T)(_GET_NAME(__vector5, T)* left);
 	void _GET_NAME(vectorN_free, T)(_GET_NAME(__vectorN, T)* left);
 
+#ifdef T2
+    void _GET_NAME(vector_free, T2)(_GET_NAME(__vector, T2)* left);
+#endif
 
 
 

@@ -8,66 +8,70 @@ FITNESS FOR A PARTICULAR PURPOSE.  See the KI General Public License version for
 */
 //----------------------------------------------------------------------------------------------------
 
+/**
+ Deploying metacode for different types.
+ */
+
 
 #ifndef __VEC_TEMPLATES_H_
 #define __VEC_TEMPLATES_H_
 
 #define T double //Defolt type
 #ifdef T 
-	#include"Vectors.h"
-	#include"Vectors.c"
+	#include "Vectors.h"
+	//#include "../libc/Vectors.c"
 	#undef T
 #endif
 
 #define T uint8_t
 #ifdef T 
-	#include"Vectors.h"
-	#include"Vectors.c"
+    #include "Vectors.h"
+    //#include "../libc/Vectors.c"
 	#undef T
 #endif
 
 #define T int8_t
 #ifdef T
-	#include "Vectors.h"
-	#include "Vectors.c"
+    #include "Vectors.h"
+    //#include "../libc/Vectors.c"
 	#undef T
 #endif
 
 #define T uint32_t
 #ifdef T 
-	#include"Vectors.h"
-	#include"Vectors.c"
+    #include "Vectors.h"
+    //#include "../libc/Vectors.c"
 	#undef T 
 #endif
 
 #define T int32_t
 #ifdef T
-	#include "Vectors.h"
-	#include "Vectors.c"
+    #include "Vectors.h"
+    //#include "../libc/Vectors.c"
 	#undef T
 #endif
 
 #define T uint64_t
 #ifdef T
-	#include "Vectors.h"
-	#include "Vectors.c"
+    #include "Vectors.h"
+    //#include "../libc/Vectors.c"
 	#undef T
 #endif
 
 #define T int64_t
 #ifdef T
-	#include "Vectors.h"
-	#include "Vectors.c"
+    #include "Vectors.h"
+    //#include "../libc/Vectors.c"
 	#undef T
 #endif
 
 #define T float
+#ifdef T
 #define T2 xln
-#ifdef T 
-	#include"Vectors.h"
-	#include"Vectors.c"
-	#undef T
-#undef T2
+    #include "Vectors.h"
+    //#include "../libc/Vectors.c"
+	#undef T2
+#undef T
 #endif
 
 
